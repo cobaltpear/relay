@@ -40,7 +40,6 @@ export default {
       name, templateId: t.j.id, gpuTypeIds: GPUS[gpu], gpuCount: 1,
       workersMin: 0, workersMax: 1, idleTimeout: 5, flashboot: true,
       executionTimeoutMs: b.video ? 1800000 : 600000, scalerType: "QUEUE_DELAY", scalerValue: 4,
-      allowedCudaVersions: ["12.8", "12.9", "13.0"],  // the API takes up to 13.0
     });
     if (!e.ok || !e.j?.id) await fetch(RUNPOD + "/templates/" + t.j.id, { method: "DELETE", headers: { authorization: key } }).catch(() => {});  // leave nothing half-made
     if (!e.ok || !e.j?.id) return reply(e.status === 401 || e.status === 403 ? 403 : 502, { error: e.status === 401 || e.status === 403 ? "This key can't create endpoints." : "RunPod: " + e.text });
