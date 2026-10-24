@@ -1,0 +1,8 @@
+name = "cobaltpear-relay"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+# no request logs: the key is in every request
+[observability]
+enabled = false
