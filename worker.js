@@ -1,6 +1,7 @@
-// Cobalt Pear relay — makes a RunPod endpoint for one model from the list, because RunPod's
-// create API can't be called from a browser (CORS). It does only that: two fixed calls to
+// Cobalt Pear relay — makes (and on Remove deletes) a RunPod endpoint for one model from the list,
+// because RunPod's REST API can't be called from a browser (CORS). It does only that: fixed calls to
 // rest.runpod.io with the caller's own key. The key is passed on and never stored or logged.
+// It deletes only endpoints it made (named cp-…), with their template.
 const ORIGINS = ["https://cobaltpear.github.io"];
 const RUNPOD = "https://rest.runpod.io/v1";
 // the image RunPod's own «Deploy image or video API» uses (vLLM-Omni on the Hub)
@@ -20,13 +21,29 @@ export default {
     const reply = (status, body) => new Response(JSON.stringify(body), { status, headers: { ...cors, "content-type": "application/json" } });
     if (!allowed) return reply(403, { error: "Not allowed from this page." });
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
-    if (req.method !== "POST" || new URL(req.url).pathname !== "/create") return reply(404, { error: "Not found." });
+    const path = new URL(req.url).pathname;
+    if (req.method !== "POST" || (path !== "/create" && path !== "/delete")) return reply(404, { error: "Not found." });
 
     const key = req.headers.get("authorization") || "";
     let b;
     try { b = await req.json(); } catch { return reply(400, { error: "Bad request." }); }
+    if (!/^Bearer \S+$/.test(key)) return reply(400, { error: "Bad request." });
+    const denied = s => s === 401 || s === 403;
+    if (path === "/delete") {
+      const id = String(b.id || "");
+      if (!/^[a-z0-9]{8,24}$/.test(id)) return reply(400, { error: "Bad request." });
+      const g = await fetch(RUNPOD + "/endpoints/" + id, { headers: { authorization: key } });
+      if (g.status === 404) return reply(200, { gone: true });
+      const ep = await g.json().catch(() => null);
+      if (!g.ok || !ep) return reply(denied(g.status) ? 403 : 502, { error: denied(g.status) ? "This key can't delete endpoints." : "RunPod: " + g.status });
+      if (!String(ep.name || "").startsWith("cp-")) return reply(403, { error: "Not made by Cobalt Pear — left as it is." });
+      const d = await fetch(RUNPOD + "/endpoints/" + id, { method: "DELETE", headers: { authorization: key } });
+      if (!d.ok) return reply(denied(d.status) ? 403 : 502, { error: denied(d.status) ? "This key can't delete endpoints." : "RunPod: " + d.status });
+      if (ep.templateId) await fetch(RUNPOD + "/templates/" + ep.templateId, { method: "DELETE", headers: { authorization: key } }).catch(() => {});
+      return reply(200, { gone: true });
+    }
     const model = String(b.model || ""), gpu = GPUS[b.gpu] ? b.gpu : 48, hf = String(b.hf || "");
-    if (!/^Bearer \S+$/.test(key) || !/^\w[\w.-]{0,95}\/\w[\w.-]{0,95}$/.test(model) || (hf && !/^hf_\w{10,100}$/.test(hf))) return reply(400, { error: "Bad request." });
+    if (!/^\w[\w.-]{0,95}\/\w[\w.-]{0,95}$/.test(model) || (hf && !/^hf_\w{10,100}$/.test(hf))) return reply(400, { error: "Bad request." });
     const name = "cp-" + model.split("/")[1].toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40) + "-" + Math.random().toString(36).slice(2, 6);
     const call = async (path, body) => {  // RunPod's own error text is passed back, never logged
       const r = await fetch(RUNPOD + path, { method: "POST", headers: { authorization: key, "content-type": "application/json" }, body: JSON.stringify(body) });
