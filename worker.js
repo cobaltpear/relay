@@ -25,8 +25,8 @@ export default {
     const key = req.headers.get("authorization") || "";
     let b;
     try { b = await req.json(); } catch { return reply(400, { error: "Bad request." }); }
-    const model = String(b.model || ""), gpu = GPUS[b.gpu] ? b.gpu : 48;
-    if (!/^Bearer \S+$/.test(key) || !/^\w[\w.-]{0,95}\/\w[\w.-]{0,95}$/.test(model)) return reply(400, { error: "Bad request." });
+    const model = String(b.model || ""), gpu = GPUS[b.gpu] ? b.gpu : 48, hf = String(b.hf || "");
+    if (!/^Bearer \S+$/.test(key) || !/^\w[\w.-]{0,95}\/\w[\w.-]{0,95}$/.test(model) || (hf && !/^hf_\w{10,100}$/.test(hf))) return reply(400, { error: "Bad request." });
     const name = "cp-" + model.split("/")[1].toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40) + "-" + Math.random().toString(36).slice(2, 6);
     const call = async (path, body) => {  // RunPod's own error text is passed back, never logged
       const r = await fetch(RUNPOD + path, { method: "POST", headers: { authorization: key, "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -34,7 +34,7 @@ export default {
       let j = null; try { j = JSON.parse(text); } catch {}
       return { ok: r.ok, status: r.status, j, text: text.slice(0, 300) };
     };
-    const t = await call("/templates", { name, imageName: IMAGE, isServerless: true, containerDiskInGb: 60, env: { MODEL_NAME: model } });
+    const t = await call("/templates", { name, imageName: IMAGE, isServerless: true, containerDiskInGb: 60, env: { MODEL_NAME: model, ...(hf && { HF_TOKEN: hf }) } });  // gated models need the customer's HF token
     if (!t.ok || !t.j?.id) return reply(t.status === 401 || t.status === 403 ? 403 : 502, { error: t.status === 401 || t.status === 403 ? "This key can't create endpoints." : "RunPod: " + t.text });
     const e = await call("/endpoints", {
       name, templateId: t.j.id, gpuTypeIds: GPUS[gpu], gpuCount: 1,
