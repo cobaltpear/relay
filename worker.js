@@ -1,6 +1,8 @@
 // Cobalt Pear relay — makes (and on Remove deletes) a RunPod endpoint for one model from the list,
 // because RunPod's REST API can't be called from a browser (CORS). It does only that: fixed calls to
 // rest.runpod.io with the caller's own key. The key is passed on and never stored or logged.
+// The one thing it keeps: how many endpoints it made for each model (the model's name and a number, in COUNTS) —
+// nothing about who asked.
 // It deletes only endpoints it made (named cp-…), with their template.
 const ORIGINS = ["https://cobaltpear.github.io"];
 const RUNPOD = "https://rest.runpod.io/v1";
@@ -60,6 +62,7 @@ export default {
     });
     if (!e.ok || !e.j?.id) await fetch(RUNPOD + "/templates/" + t.j.id, { method: "DELETE", headers: { authorization: key } }).catch(() => {});  // leave nothing half-made
     if (!e.ok || !e.j?.id) return reply(e.status === 401 || e.status === 403 ? 403 : 502, { error: e.status === 401 || e.status === 403 ? "This key can't create endpoints." : "RunPod: " + e.text });
+    try { if (env.COUNTS) await env.COUNTS.put(model, String((parseInt(await env.COUNTS.get(model)) || 0) + 1)); } catch {}  // a count that fails never fails the request
     return reply(200, { id: e.j.id, name });
   },
 };

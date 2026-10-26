@@ -6,3 +6,8 @@ workers_dev = true
 # no request logs: the key is in every request
 [observability]
 enabled = false
+
+# how many endpoints were made per model (model name → number) — nothing about who
+[[kv_namespaces]]
+binding = "COUNTS"
+id = "640b7267517e41b893e8e58f6dc24204"
