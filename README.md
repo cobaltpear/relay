@@ -10,3 +10,7 @@ RunPod does not let a web page create endpoints directly, so the page sends your
 - Everything it does is in [`worker.js`](worker.js).
 
 Prefer not to use it? Do the steps by hand — they are shown under the button.
+
+## License
+
+MIT ([LICENSE](LICENSE)).
